@@ -92,7 +92,7 @@ const TranscribeInput = z.object({
 
 export const agentTranscribe = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => TranscribeInput.parse(d))
+  .validator((d: unknown) => TranscribeInput.parse(d))
   .handler(async ({ data }) => {
     const key = groqKey();
 
@@ -163,7 +163,7 @@ OUTPUT: Return strict JSON:
 
 export const agentConverse = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => ConverseInput.parse(d))
+  .validator((d: unknown) => ConverseInput.parse(d))
   .handler(async ({ data }) => {
     const messages: ChatMessage[] = [
       { role: "system", content: SYS },
@@ -189,7 +189,7 @@ const SpeakInput = z.object({
 
 export const agentSpeak = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => SpeakInput.parse(d))
+  .validator((d: unknown) => SpeakInput.parse(d))
   .handler(async ({ data }) => {
     const key = groqKey();
 
