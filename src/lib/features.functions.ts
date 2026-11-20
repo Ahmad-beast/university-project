@@ -21,7 +21,7 @@ type SkillGapResult = {
 
 export const runSkillGap = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => SkillGapInput.parse(d))
+  .validator((d: unknown) => SkillGapInput.parse(d))
   .handler(async ({ data, context }) => {
     const sys = `You are an expert career coach and skills assessor. Analyze skill gaps for the target role.
 Predict which concepts the student will likely struggle with based on their stated skills and experience.
@@ -89,7 +89,7 @@ type ResumeResult = {
 
 export const analyzeResume = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => ResumeInput.parse(d))
+  .validator((d: unknown) => ResumeInput.parse(d))
   .handler(async ({ data, context }) => {
     const sys = `You are a senior recruiter and ATS expert. Analyze the resume for the target role.
 Return strict JSON:
@@ -149,7 +149,7 @@ const FinishInterviewInput = z.object({ sessionId: z.string().uuid() });
 
 export const startInterview = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => StartInterviewInput.parse(d))
+  .validator((d: unknown) => StartInterviewInput.parse(d))
   .handler(async ({ data, context }) => {
     const sys = `You are a senior interviewer for a ${data.role} role conducting a ${data.type} interview.
 Ask ONE question at a time. Keep it concise and realistic. Start with a warm intro then the first question.`;
@@ -178,7 +178,7 @@ Ask ONE question at a time. Keep it concise and realistic. Start with a warm int
 
 export const nextInterviewTurn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => InterviewTurnInput.parse(d))
+  .validator((d: unknown) => InterviewTurnInput.parse(d))
   .handler(async ({ data, context }) => {
     const { data: session, error } = await context.supabase
       .from("interview_sessions")
@@ -220,7 +220,7 @@ type InterviewEval = {
 
 export const finishInterview = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => FinishInterviewInput.parse(d))
+  .validator((d: unknown) => FinishInterviewInput.parse(d))
   .handler(async ({ data, context }) => {
     const { data: session, error } = await context.supabase
       .from("interview_sessions")
@@ -278,7 +278,7 @@ type RepoRaw = {
 
 export const buildPortfolio = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => PortfolioInput.parse(d))
+  .validator((d: unknown) => PortfolioInput.parse(d))
   .handler(async ({ data, context }) => {
     const username = data.githubUsername.trim();
     // Fetch user + repos from GitHub public API
@@ -377,7 +377,7 @@ const AgentSendInput = z.object({
 
 export const sendAgentMessage = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => AgentSendInput.parse(d))
+  .validator((d: unknown) => AgentSendInput.parse(d))
   .handler(async ({ data, context }) => {
     let conversationId = data.conversationId;
     if (!conversationId) {
@@ -450,7 +450,7 @@ export const listAgentConversations = createServerFn({ method: "GET" })
 
 export const getAgentMessages = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => z.object({ conversationId: z.string().uuid() }).parse(d))
+  .validator((d: unknown) => z.object({ conversationId: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     const { data: msgs, error } = await context.supabase
       .from("agent_messages")
@@ -466,7 +466,7 @@ const RenameInput = z.object({ conversationId: z.string().uuid(), title: z.strin
 
 export const renameAgentConversation = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => RenameInput.parse(d))
+  .validator((d: unknown) => RenameInput.parse(d))
   .handler(async ({ data, context }) => {
     const { error } = await context.supabase
       .from("agent_conversations")
@@ -478,7 +478,7 @@ export const renameAgentConversation = createServerFn({ method: "POST" })
 
 export const deleteAgentConversation = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => ConvIdInput.parse(d))
+  .validator((d: unknown) => ConvIdInput.parse(d))
   .handler(async ({ data, context }) => {
     await context.supabase.from("agent_messages").delete().eq("conversation_id", data.conversationId);
     const { error } = await context.supabase
@@ -491,7 +491,7 @@ export const deleteAgentConversation = createServerFn({ method: "POST" })
 
 export const togglePinAgentConversation = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => z.object({ conversationId: z.string().uuid(), pinned: z.boolean() }).parse(d))
+  .validator((d: unknown) => z.object({ conversationId: z.string().uuid(), pinned: z.boolean() }).parse(d))
   .handler(async ({ data, context }) => {
     const { error } = await context.supabase
       .from("agent_conversations")
@@ -523,7 +523,7 @@ const UpdateProfileInput = z.object({
 
 export const updateMyProfile = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => UpdateProfileInput.parse(d))
+  .validator((d: unknown) => UpdateProfileInput.parse(d))
   .handler(async ({ data, context }) => {
     const { data: updated, error } = await context.supabase
       .from("profiles")
@@ -545,7 +545,7 @@ type AssessmentQuestion = { id: string; question: string; concept: string; optio
 
 export const generateAssessment = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => AssessmentGenerateInput.parse(d))
+  .validator((d: unknown) => AssessmentGenerateInput.parse(d))
   .handler(async ({ data }) => {
     const sys = `Generate a 10-question multiple-choice skills baseline questionnaire for someone targeting: ${data.targetRole}.
 Mix easy, medium, hard. Cover foundational + intermediate concepts. Return strict JSON:
@@ -566,7 +566,7 @@ const AssessmentSubmitInput = z.object({
 
 export const submitAssessment = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => AssessmentSubmitInput.parse(d))
+  .validator((d: unknown) => AssessmentSubmitInput.parse(d))
   .handler(async ({ data, context }) => {
     const sys = `Grade this skills questionnaire for a "${data.targetRole}" candidate. Determine the correct option for each question, mark right/wrong, compute overall level.
 Return strict JSON:
@@ -598,7 +598,7 @@ type CourseSuggestion = { title: string; url: string; source: string; difficulty
 
 export const searchCourses = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => CourseSearchInput.parse(d))
+  .validator((d: unknown) => CourseSearchInput.parse(d))
   .handler(async ({ data, context }) => {
     const sys = `You are a curriculum curator. Suggest 8 high-quality YouTube videos or free online courses on "${data.topic}" for a ${data.level ?? "beginner-to-intermediate"} learner.
 Prefer well-known channels (freeCodeCamp, Fireship, Traversy Media, The Net Ninja, Corey Schafer, MIT OCW, CS50, StatQuest, 3Blue1Brown, Krish Naik, etc). Use real YouTube search URLs when unsure of exact video: https://www.youtube.com/results?search_query=...
@@ -635,7 +635,7 @@ export const listCourses = createServerFn({ method: "GET" })
 
 export const toggleCourseComplete = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => z.object({ id: z.string().uuid(), completed: z.boolean() }).parse(d))
+  .validator((d: unknown) => z.object({ id: z.string().uuid(), completed: z.boolean() }).parse(d))
   .handler(async ({ data, context }) => {
     const { error } = await context.supabase.from("courses").update({ completed: data.completed }).eq("id", data.id);
     if (error) throw new Error(error.message);
@@ -648,7 +648,7 @@ type QuizQuestion = { id: string; question: string; options: string[]; correct: 
 
 export const generateQuiz = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => GenerateQuizInput.parse(d))
+  .validator((d: unknown) => GenerateQuizInput.parse(d))
   .handler(async ({ data, context }) => {
     const sys = `Generate an 8-question mock quiz to test comprehension of "${data.topic}". Mix concept understanding + application.
 Return strict JSON:
@@ -669,7 +669,7 @@ const SubmitQuizInput = z.object({ quizId: z.string().uuid(), answers: z.array(z
 
 export const submitQuiz = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => SubmitQuizInput.parse(d))
+  .validator((d: unknown) => SubmitQuizInput.parse(d))
   .handler(async ({ data, context }) => {
     const { data: quiz, error } = await context.supabase.from("quizzes").select("*").eq("id", data.quizId).single();
     if (error) throw new Error(error.message);
@@ -779,7 +779,7 @@ async function attachYoutubeVideos(
 
 export const generateRoadmap = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => GenerateRoadmapInput.parse(d))
+  .validator((d: unknown) => GenerateRoadmapInput.parse(d))
   .handler(async ({ data, context }) => {
     const sys = `Create a comprehensive step-by-step learning roadmap of 6-10 major PHASES for someone targeting "${data.targetRole}" (${data.level ?? "beginner"}).
 For each phase, break it into 4-8 ordered SUB-TOPICS that must be learned sequentially. For each sub-topic, suggest 2-4 high-quality resources (YouTube videos or free courses).
@@ -870,7 +870,7 @@ export const listRoadmap = createServerFn({ method: "GET" })
 
 export const setRoadmapStatus = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => z.object({ id: z.string().uuid(), status: z.enum(["todo", "doing", "done"]) }).parse(d))
+  .validator((d: unknown) => z.object({ id: z.string().uuid(), status: z.enum(["todo", "doing", "done"]) }).parse(d))
   .handler(async ({ data, context }) => {
     const { error } = await context.supabase.from("roadmap_items").update({ status: data.status }).eq("id", data.id);
     if (error) throw new Error(error.message);
@@ -879,7 +879,7 @@ export const setRoadmapStatus = createServerFn({ method: "POST" })
 
 export const toggleSubtopicComplete = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => z.object({ itemId: z.string().uuid(), subtopicId: z.string(), completed: z.boolean() }).parse(d))
+  .validator((d: unknown) => z.object({ itemId: z.string().uuid(), subtopicId: z.string(), completed: z.boolean() }).parse(d))
   .handler(async ({ data, context }) => {
     const { data: row, error } = await context.supabase.from("roadmap_items").select("sub_topics").eq("id", data.itemId).single();
     if (error) throw new Error(error.message);
@@ -913,7 +913,7 @@ const CvData = z.object({
 
 export const saveCv = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => z.object({ id: z.string().uuid().optional(), title: z.string().max(120).default("My CV"), template: z.string().default("minimal"), data: CvData }).parse(d))
+  .validator((d: unknown) => z.object({ id: z.string().uuid().optional(), title: z.string().max(120).default("My CV"), template: z.string().default("minimal"), data: CvData }).parse(d))
   .handler(async ({ data, context }) => {
     if (data.id) {
       const { data: updated, error } = await context.supabase
@@ -969,7 +969,7 @@ const buildApplyLinks = (title: string, company: string, location: string) => {
 
 export const generateJobMatches = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => JobMatchInput.parse(d))
+  .validator((d: unknown) => JobMatchInput.parse(d))
   .handler(async ({ data, context }) => {
     const sys = `Generate 8 realistic entry-appropriate job openings for a ${data.level} "${data.targetRole}". Illustrative examples matched to skill level. Vary companies (mix real well-known + realistic startups), remote/onsite, salary bands in local currency where sensible.
 Return strict JSON:
@@ -1023,7 +1023,7 @@ export const listJobs = createServerFn({ method: "GET" })
 // ---------- Progress / streak ----------
 export const logStudy = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => z.object({ minutes: z.number().min(1).max(600) }).parse(d))
+  .validator((d: unknown) => z.object({ minutes: z.number().min(1).max(600) }).parse(d))
   .handler(async ({ data, context }) => {
     const today = new Date().toISOString().slice(0, 10);
     const { data: existing } = await context.supabase.from("study_sessions").select("*").eq("user_id", context.userId).eq("day", today).maybeSingle();
@@ -1098,7 +1098,7 @@ type WeakSkillPack = {
 
 export const recommendWeakSkillResources = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => WeakSkillResourcesInput.parse(d))
+  .validator((d: unknown) => WeakSkillResourcesInput.parse(d))
   .handler(async ({ data }) => {
     const sys = `You are a professional AI career coach. For each weak skill/concept listed, recommend a high-quality learning pack for someone targeting "${data.targetRole}".
 For EACH concept return:
