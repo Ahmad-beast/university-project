@@ -100,7 +100,8 @@
   /* Premium dark theme: slate-navy surfaces, blue/indigo/purple accents */
   --background: #0B1220;
   --foreground: #F8FAFC;
-  --cream: #F8FAFC;
+  /* cream is the text color on ink surfaces, so it must contrast with ink */
+  --cream: #0B1220;
   --ink: #F8FAFC;
 
   --card: #1E293B;

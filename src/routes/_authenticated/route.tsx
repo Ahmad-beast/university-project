@@ -9,31 +9,18 @@ import { ThemeToggle } from "@/components/theme-toggle";
 export const Route = createFileRoute("/_authenticated")({
   ssr: false,
   beforeLoad: async () => {
-    if (typeof window !== "undefined") {
+    // Local demo session exists only in dev builds (see auth.tsx); never in production.
+    if (import.meta.env.DEV && typeof window !== "undefined") {
       const demoSession = localStorage.getItem("demo_user_session");
       if (demoSession) {
         try {
-          const parsed = JSON.parse(demoSession);
-          return { user: parsed };
+          return { user: JSON.parse(demoSession) };
         } catch {}
       }
     }
-    try {
-      const { data, error } = await supabase.auth.getUser();
-      if (error || !data?.user) throw redirect({ to: "/auth" });
-      return { user: data.user };
-    } catch (err) {
-      if ((err as Record<string, unknown>)?.to === "/auth") throw err;
-      const demoUser = {
-        id: "demo-user-123",
-        email: "demo@example.com",
-        user_metadata: { full_name: "Demo Student" },
-      };
-      if (typeof window !== "undefined") {
-        localStorage.setItem("demo_user_session", JSON.stringify(demoUser));
-      }
-      return { user: demoUser };
-    }
+    const { data, error } = await supabase.auth.getUser();
+    if (error || !data?.user) throw redirect({ to: "/auth" });
+    return { user: data.user };
   },
   component: AuthedLayout,
 });
@@ -50,7 +37,7 @@ const nav = [
   { to: "/interview", label: "Interview", icon: Mic },
   { to: "/portfolio", label: "Portfolio", icon: Github },
   { to: "/progress", label: "Progress", icon: LineChart },
-  { to: "/agent", label: "Automated Recommendation System Agent", icon: Sparkles },
+  { to: "/agent", label: "AI Agent", icon: Sparkles },
 ] as const;
 
 function AuthedLayout() {
@@ -83,22 +70,16 @@ function AuthedLayout() {
     navigate({ to: "/auth", replace: true });
   };
 
-  const isAgent = location.pathname.startsWith("/agent");
-
-  if (isAgent) {
-    return <Outlet />;
-  }
-
   return (
-    <div className="grain-bg flex min-h-screen">
-      <aside className="hidden w-64 flex-col border-r border-border bg-sidebar p-4 md:flex">
+    <div className="grain-bg flex h-screen overflow-hidden">
+      <aside className="hidden w-64 shrink-0 flex-col overflow-y-auto border-r border-border bg-sidebar p-4 md:flex">
         <Link to="/dashboard" className="mb-8 flex items-center gap-2 px-2">
-          <img src={logoMark} alt="Automated Recommendation System" className="h-9 w-9 object-contain" />
-          <span className="display text-xl">Automated Recommendation System</span>
+          <img src={logoMark} alt="" className="h-9 w-9 shrink-0 object-contain" />
+          <span className="display text-lg leading-tight">Automated Recommendation System</span>
         </Link>
         <nav className="flex flex-col gap-1">
           {nav.map((item) => {
-            const active = location.pathname === item.to;
+            const active = location.pathname.startsWith(item.to);
             return (
               <Link
                 key={item.to}
@@ -122,7 +103,7 @@ function AuthedLayout() {
             </div>
             <div className="min-w-0 flex-1">
               <div className="truncate text-sm font-medium">
-                {profile?.display_name ?? user.email}
+                {profile?.display_name || user.user_metadata?.full_name || user.email}
               </div>
               <div className="truncate text-xs text-muted-foreground">{user.email}</div>
             </div>

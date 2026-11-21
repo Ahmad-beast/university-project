@@ -12,7 +12,7 @@ export const attachSupabaseAuth = createMiddleware({ type: 'function' }).client(
       token = data.session?.access_token;
     } catch {}
 
-    if (!token && typeof window !== 'undefined') {
+    if (import.meta.env.DEV && !token && typeof window !== 'undefined') {
       const demo = localStorage.getItem('demo_user_session');
       if (demo) {
         token = 'demo.eyJzdWIiOiJkZW1vLXVzZXItMTIzIn0.signature';
