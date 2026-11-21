@@ -1,8 +1,8 @@
-import { createFileRoute, Link, useNavigate, useLocation } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useTheme } from "@/components/theme-provider";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { AnimatePresence, motion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -17,22 +17,18 @@ import { agentTranscribe, agentSpeak } from "@/lib/agent.functions";
 import { toast } from "sonner";
 import {
   Sparkles, Send, Loader2, MessageSquare, Plus, PanelLeftClose, PanelLeftOpen,
-  LayoutDashboard, ClipboardList, PlayCircle, Map, Brain, IdCard, FileText,
-  Briefcase, Mic, Github, LineChart, Settings, Pin, PinOff, Pencil, Trash2,
-  MoreHorizontal, Paperclip, Smile, X, LogOut, User, ChevronDown, Search,
-  Bell, Sun, Moon, Copy, RotateCcw, ThumbsUp, ThumbsDown, Volume2, Share2,
-  MicOff, Square, Trash, Wand2,
+  Mic, Pin, PinOff, Pencil, Trash2, MoreHorizontal, Paperclip, Smile, X, User,
+  ChevronDown, Search, Copy, RotateCcw, ThumbsUp, ThumbsDown, Volume2, Share2,
+  MicOff, Square, Wand2,
 } from "lucide-react";
-import logoMark from "@/assets/logo-mark.png";
-import { AgentAutomationBar } from "@/components/agent-automation/AgentAutomationBar";
 
 export const Route = createFileRoute("/_authenticated/agent")({
   head: () => ({
     meta: [
-      { title: "ARS Agent — Premium AI Career Assistant" },
-      { name: "description", content: "A world-class AI workspace: chat, voice, and personalized career guidance." },
-      { property: "og:title", content: "ARS Agent — Premium AI Career Assistant" },
-      { property: "og:description", content: "Perplexity-grade UI, ChatGPT-style conversation, Claude-warm mentorship." },
+      { title: "AI Agent · Automated Recommendation System" },
+      { name: "description", content: "Chat or talk with your AI career mentor." },
+      { property: "og:title", content: "AI Agent · Automated Recommendation System" },
+      { property: "og:description", content: "Chat or talk with your AI career mentor." },
     ],
   }),
   component: AgentPage,
@@ -40,21 +36,6 @@ export const Route = createFileRoute("/_authenticated/agent")({
 
 type Convo = { id: string; title: string; updated_at: string; pinned: boolean };
 type Msg = { id: string; role: string; content: string; created_at: string };
-
-const nav = [
-  { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/assessment", label: "Assessment", icon: ClipboardList },
-  { to: "/courses", label: "Courses", icon: PlayCircle },
-  { to: "/roadmap", label: "Roadmap", icon: Map },
-  { to: "/skills", label: "Skill Gap", icon: Brain },
-  { to: "/cv", label: "CV Builder", icon: IdCard },
-  { to: "/resume", label: "Resume", icon: FileText },
-  { to: "/jobs", label: "Jobs", icon: Briefcase },
-  { to: "/interview", label: "Interview", icon: Mic },
-  { to: "/portfolio", label: "Portfolio", icon: Github },
-  { to: "/progress", label: "Progress", icon: LineChart },
-  { to: "/agent", label: "AI Agent", icon: Sparkles },
-] as const;
 
 const EMOJIS = ["😀","😄","😅","😊","🤔","🙌","👍","🔥","🎯","🚀","💡","✨","❤️","💯","🙏","😎","👀","📚","💼","🧠"];
 
@@ -79,26 +60,20 @@ function AgentPage() {
   const transcribeFn = useServerFn(agentTranscribe);
   const speakFn = useServerFn(agentSpeak);
   const qc = useQueryClient();
-  const navigate = useNavigate();
-  const location = useLocation();
 
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [input, setInput] = useState("");
-  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [historyOpen, setHistoryOpen] = useState(true);
   const [voiceOpen, setVoiceOpen] = useState(false);
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [attachments, setAttachments] = useState<{ name: string; text: string }[]>([]);
   const [thinking, setThinking] = useState(false);
-  const { theme, toggle: toggleTheme } = useTheme();
-  const dark = theme === "dark";
   const [user, setUser] = useState<{ email: string; name: string; initials: string } | null>(null);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
-  const resumeRef = useRef<HTMLInputElement>(null);
 
 
   // User
@@ -172,15 +147,16 @@ function AgentPage() {
   );
   const grouped = useMemo(() => groupConvos(filtered), [filtered]);
 
-  async function handleAttach(files: FileList | null, kind: "any" | "resume") {
+  async function handleAttach(files: FileList | null) {
     if (!files) return;
     for (const f of Array.from(files)) {
-      try {
-        const text = await f.text();
-        setAttachments((a) => [...a, { name: kind === "resume" ? `[Resume] ${f.name}` : f.name, text }]);
-      } catch {
-        setAttachments((a) => [...a, { name: f.name, text: "(binary attachment)" }]);
+      // Only plain-text files can be read in the browser; PDFs/DOCX would arrive as garbage.
+      if (!/\.(txt|md|csv|json)$/i.test(f.name) && !f.type.startsWith("text/")) {
+        toast.error(`${f.name}: only text files are supported. Paste resume text instead.`);
+        continue;
       }
+      const text = await f.text();
+      setAttachments((a) => [...a, { name: f.name, text }]);
     }
   }
 
@@ -193,90 +169,31 @@ function AgentPage() {
   const activeConvo = convos?.find((c) => c.id === conversationId);
   const greeting = getGreeting();
 
+  const groupProps = {
+    activeId: conversationId,
+    onSelect: setConversationId,
+    onRename: (id: string, t: string) => renameM.mutate({ conversationId: id, title: t }),
+    onDelete: (id: string) => deleteM.mutate({ conversationId: id }),
+    onPin: (id: string, p: boolean) => pinM.mutate({ conversationId: id, pinned: p }),
+  };
+
   return (
-    <div className="ambient-orbs relative flex h-screen w-full overflow-hidden bg-background text-foreground">
-      {/* LEFT — Nav rail */}
-      <motion.aside
-        initial={false}
-        animate={{ width: sidebarOpen ? 264 : 72 }}
-        transition={{ type: "spring", stiffness: 300, damping: 32 }}
-        className="relative z-10 hidden shrink-0 flex-col p-3 md:flex"
-      >
-        <div className="glass flex h-full flex-col rounded-3xl p-3 shadow-panel">
-          <div className="flex h-12 items-center justify-between px-1">
-            <Link to="/dashboard" className="flex min-w-0 items-center gap-2">
-              <div className="brand-gradient grid h-9 w-9 shrink-0 place-items-center rounded-xl shadow-sm">
-                <img src={logoMark} alt="ARS" className="h-6 w-6 object-contain brightness-0 invert" />
-              </div>
-              {sidebarOpen && <span className="display truncate text-base">ARS</span>}
-            </Link>
-            <button
-              onClick={() => setSidebarOpen((s) => !s)}
-              className="rounded-lg p-1.5 text-muted-foreground transition hover:bg-muted hover:text-foreground"
-            >
-              {sidebarOpen ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeftOpen className="h-4 w-4" />}
-            </button>
-          </div>
-
-          <nav className="mt-3 flex-1 space-y-0.5 overflow-y-auto pr-1">
-            {nav.map((item) => {
-              const active = location.pathname === item.to;
-              return (
-                <Link
-                  key={item.to}
-                  to={item.to}
-                  title={item.label}
-                  className={`group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all duration-200 ${
-                    active
-                      ? "brand-gradient text-white shadow-cta"
-                      : "text-foreground/70 hover:bg-muted hover:text-foreground"
-                  } ${sidebarOpen ? "" : "justify-center"}`}
-                >
-                  <item.icon className={`h-[18px] w-[18px] shrink-0 transition-transform ${active ? "" : "group-hover:scale-110"}`} strokeWidth={1.75} />
-                  {sidebarOpen && <span className="truncate">{item.label}</span>}
-                </Link>
-              );
-            })}
-          </nav>
-
-          {/* User card */}
-          <div className={`mt-3 rounded-2xl border border-border bg-card/60 p-2 backdrop-blur ${sidebarOpen ? "" : "text-center"}`}>
-            <div className={`flex items-center gap-2 ${sidebarOpen ? "" : "flex-col"}`}>
-              <div className="brand-gradient grid h-9 w-9 shrink-0 place-items-center rounded-full text-xs font-bold text-white shadow-sm">
-                {user?.initials ?? "…"}
-              </div>
-              {sidebarOpen && (
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-xs font-semibold">{user?.name ?? "Signed in"}</div>
-                  <div className="truncate text-[10px] text-muted-foreground">{user?.email}</div>
-                </div>
-              )}
-            </div>
-            <button
-              onClick={async () => { await supabase.auth.signOut(); navigate({ to: "/auth", replace: true }); }}
-              className={`mt-2 flex w-full items-center gap-2 rounded-lg border border-border bg-background/60 px-2.5 py-1.5 text-xs font-medium text-foreground/70 transition hover:border-red-400/40 hover:bg-red-500/5 hover:text-red-500 ${sidebarOpen ? "" : "justify-center"}`}
-            >
-              <LogOut className="h-3.5 w-3.5" /> {sidebarOpen && "Sign out"}
-            </button>
-          </div>
-        </div>
-      </motion.aside>
-
-      {/* MIDDLE — History */}
+    <div className="flex h-[calc(100dvh-49px)] w-full overflow-hidden md:h-screen">
+      {/* Conversation history */}
       <AnimatePresence initial={false}>
         {historyOpen && (
           <motion.aside
             initial={{ width: 0, opacity: 0 }}
-            animate={{ width: 300, opacity: 1 }}
+            animate={{ width: 272, opacity: 1 }}
             exit={{ width: 0, opacity: 0 }}
             transition={{ type: "spring", stiffness: 300, damping: 32 }}
-            className="relative z-10 hidden shrink-0 overflow-hidden py-3 pr-3 lg:block"
+            className="hidden shrink-0 overflow-hidden border-r border-border bg-sidebar lg:block"
           >
-            <div className="glass flex h-full w-[276px] flex-col rounded-3xl shadow-panel">
+            <div className="flex h-full w-[272px] flex-col">
               <div className="p-3">
                 <button
                   onClick={() => setConversationId(null)}
-                  className="brand-gradient flex w-full items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-sm font-semibold text-white shadow-cta transition hover:brightness-110"
+                  className="flex w-full items-center justify-center gap-2 rounded-lg bg-ink px-3 py-2 text-sm font-medium text-cream transition hover:opacity-90"
                 >
                   <Plus className="h-4 w-4" /> New chat
                 </button>
@@ -286,29 +203,17 @@ function AgentPage() {
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     placeholder="Search conversations"
-                    className="w-full rounded-xl border border-border bg-background/60 py-2 pl-8 pr-3 text-xs outline-none placeholder:text-muted-foreground focus:border-[#6366F1]"
+                    className="w-full rounded-lg border border-border bg-background py-2 pl-8 pr-3 text-xs outline-none placeholder:text-muted-foreground focus:border-ember"
                   />
                 </div>
               </div>
               <div className="flex-1 overflow-y-auto px-2 pb-3">
-                <ConvoGroup label="Pinned" items={grouped.pinned} activeId={conversationId} onSelect={setConversationId}
-                  onRename={(id, t) => renameM.mutate({ conversationId: id, title: t })}
-                  onDelete={(id) => deleteM.mutate({ conversationId: id })}
-                  onPin={(id, p) => pinM.mutate({ conversationId: id, pinned: p })} />
-                <ConvoGroup label="Today" items={grouped.today} activeId={conversationId} onSelect={setConversationId}
-                  onRename={(id, t) => renameM.mutate({ conversationId: id, title: t })}
-                  onDelete={(id) => deleteM.mutate({ conversationId: id })}
-                  onPin={(id, p) => pinM.mutate({ conversationId: id, pinned: p })} />
-                <ConvoGroup label="Yesterday" items={grouped.yesterday} activeId={conversationId} onSelect={setConversationId}
-                  onRename={(id, t) => renameM.mutate({ conversationId: id, title: t })}
-                  onDelete={(id) => deleteM.mutate({ conversationId: id })}
-                  onPin={(id, p) => pinM.mutate({ conversationId: id, pinned: p })} />
-                <ConvoGroup label="Previous" items={grouped.previous} activeId={conversationId} onSelect={setConversationId}
-                  onRename={(id, t) => renameM.mutate({ conversationId: id, title: t })}
-                  onDelete={(id) => deleteM.mutate({ conversationId: id })}
-                  onPin={(id, p) => pinM.mutate({ conversationId: id, pinned: p })} />
+                <ConvoGroup label="Pinned" items={grouped.pinned} {...groupProps} />
+                <ConvoGroup label="Today" items={grouped.today} {...groupProps} />
+                <ConvoGroup label="Yesterday" items={grouped.yesterday} {...groupProps} />
+                <ConvoGroup label="Previous" items={grouped.previous} {...groupProps} />
                 {filtered.length === 0 && (
-                  <div className="mt-6 rounded-xl border border-dashed border-border/70 p-4 text-center text-xs text-muted-foreground">
+                  <div className="mt-6 rounded-lg border border-dashed border-border p-4 text-center text-xs text-muted-foreground">
                     {search ? "No matching conversations" : "No conversations yet"}
                   </div>
                 )}
@@ -318,164 +223,134 @@ function AgentPage() {
         )}
       </AnimatePresence>
 
-      {/* RIGHT — Assistant */}
-      <section className="relative z-10 flex min-w-0 flex-1 flex-col py-3 pr-3">
-        <div className="glass-strong flex h-full min-h-0 flex-col overflow-hidden rounded-3xl shadow-panel">
-          {/* Header */}
-          <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center justify-between gap-3 border-b border-border/60 bg-background/50 px-4 backdrop-blur-xl">
-            <div className="flex min-w-0 items-center gap-2">
-              <button onClick={() => setHistoryOpen((h) => !h)} className="hidden rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground lg:inline-flex">
-                <MessageSquare className="h-4 w-4" />
-              </button>
-              <span className="relative flex h-2 w-2 shrink-0">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-75" />
-                <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
-              </span>
-              <div className="min-w-0 truncate text-sm font-semibold">
-                {activeConvo?.title ?? "New chat"}
-              </div>
+      {/* Chat */}
+      <section className="flex min-w-0 flex-1 flex-col bg-background">
+        <header className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-border px-4">
+          <div className="flex min-w-0 items-center gap-2">
+            <button
+              onClick={() => setHistoryOpen((h) => !h)}
+              title={historyOpen ? "Hide history" : "Show history"}
+              className="hidden rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground lg:inline-flex"
+            >
+              {historyOpen ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeftOpen className="h-4 w-4" />}
+            </button>
+            <div className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-ember text-white">
+              <Sparkles className="h-3.5 w-3.5" />
             </div>
-
-            <div className="hidden max-w-sm flex-1 sm:block">
-              <div className="relative">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-                <input
-                  placeholder="Search…"
-                  className="w-full rounded-full border border-border/70 bg-background/60 py-1.5 pl-8 pr-3 text-xs outline-none placeholder:text-muted-foreground focus:border-[#6366F1]"
-                />
-              </div>
+            <div className="min-w-0">
+              <div className="truncate text-sm font-semibold">{activeConvo?.title ?? "AI Career Agent"}</div>
             </div>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => setConversationId(null)}
+              className="flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted lg:hidden"
+            >
+              <Plus className="h-3.5 w-3.5" /> New
+            </button>
+            <button
+              onClick={() => setVoiceOpen(true)}
+              className="flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted"
+            >
+              <Mic className="h-3.5 w-3.5" /> Voice
+            </button>
+            <ThemeToggle />
+          </div>
+        </header>
 
-            <div className="flex items-center gap-1">
-              <IconBtn title="Notifications"><Bell className="h-4 w-4" /></IconBtn>
-              <IconBtn title="Toggle theme" onClick={toggleTheme}>
-                {dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-              </IconBtn>
-              <Link to="/dashboard" className="rounded-full p-1.5 text-muted-foreground transition hover:bg-muted hover:text-foreground">
-                <Settings className="h-4 w-4" />
-              </Link>
-              <div className="brand-gradient ml-1 grid h-8 w-8 place-items-center rounded-full text-[11px] font-bold text-white shadow-sm">
-                {user?.initials ?? "…"}
-              </div>
+        <div ref={scrollRef} className="relative flex-1 overflow-y-auto">
+          {!conversationId && (msgs?.length ?? 0) === 0 ? (
+            <Welcome greeting={greeting} name={user?.name?.split(" ")[0]} onPick={(s) => mut.mutate(s)} onVoice={() => setVoiceOpen(true)} />
+          ) : (
+            <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
+              <AnimatePresence initial={false}>
+                {msgs?.map((m) => (
+                  <Message key={m.id} role={m.role} content={m.content} onSpeak={async (t) => {
+                    try {
+                      const a = await speakFn({ data: { text: t } });
+                      const audio = new Audio(`data:${a.mimeType};base64,${a.audioBase64}`);
+                      await audio.play();
+                    } catch (e) { toast.error(e instanceof Error ? e.message : "Playback failed"); }
+                  }} onRegenerate={() => {
+                    const lastUser = [...(msgs ?? [])].reverse().find((x) => x.role === "user");
+                    if (lastUser) mut.mutate(lastUser.content);
+                  }} />
+                ))}
+              </AnimatePresence>
+              {thinking && <ThinkingBubble />}
             </div>
-          </header>
+          )}
+        </div>
 
-          {/* Content */}
-          <div ref={scrollRef} className="relative flex-1 overflow-y-auto">
-            <AgentAutomationBar />
-            {!conversationId && (msgs?.length ?? 0) === 0 ? (
-              <Welcome greeting={greeting} name={user?.name?.split(" ")[0]} onPick={(s) => mut.mutate(s)} onVoice={() => setVoiceOpen(true)} />
-            ) : (
-              <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
-                <AnimatePresence initial={false}>
-                  {msgs?.map((m) => (
-                    <Message key={m.id} role={m.role} content={m.content} onSpeak={async (t) => {
-                      try {
-                        const a = await speakFn({ data: { text: t } });
-                        const audio = new Audio(`data:${a.mimeType};base64,${a.audioBase64}`);
-                        await audio.play();
-                      } catch { toast.error("Playback failed"); }
-                    }} onRegenerate={() => {
-                      const lastUser = [...(msgs ?? [])].reverse().find((x) => x.role === "user");
-                      if (lastUser) mut.mutate(lastUser.content);
-                    }} />
-                  ))}
-                </AnimatePresence>
-                {thinking && <ThinkingBubble />}
+        {/* Composer */}
+        <div className="shrink-0 border-t border-border px-4 pb-4 pt-3 sm:px-6">
+          <div className="mx-auto max-w-3xl">
+            {attachments.length > 0 && (
+              <div className="mb-2 flex flex-wrap gap-2">
+                {attachments.map((a, i) => (
+                  <span key={i} className="flex items-center gap-1.5 rounded-full border border-border bg-card px-2.5 py-1 text-xs">
+                    <Paperclip className="h-3 w-3" />
+                    <span className="max-w-[16ch] truncate">{a.name}</span>
+                    <button onClick={() => setAttachments((x) => x.filter((_, j) => j !== i))} className="text-muted-foreground hover:text-foreground">
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                ))}
               </div>
             )}
-          </div>
 
-          {/* Input */}
-          <div className="shrink-0 px-4 pb-5 pt-2 sm:px-6">
-            <div className="mx-auto max-w-3xl">
-              {attachments.length > 0 && (
-                <div className="mb-2 flex flex-wrap gap-2">
-                  {attachments.map((a, i) => (
-                    <motion.span
-                      key={i}
-                      initial={{ opacity: 0, y: 6 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="flex items-center gap-1.5 rounded-full border border-border bg-card/80 px-2.5 py-1 text-xs shadow-sm backdrop-blur"
-                    >
-                      <Paperclip className="h-3 w-3" />
-                      <span className="max-w-[16ch] truncate">{a.name}</span>
-                      <button onClick={() => setAttachments((x) => x.filter((_, j) => j !== i))} className="text-muted-foreground hover:text-foreground">
-                        <X className="h-3 w-3" />
-                      </button>
-                    </motion.span>
-                  ))}
-                </div>
-              )}
-
-              <div className="glass-strong group relative rounded-3xl shadow-panel transition-all focus-within:ring-2 focus-within:ring-[#6366F1]/30">
-                <textarea
-                  ref={inputRef}
-                  value={input}
-                  rows={1}
-                  onChange={(e) => {
-                    setInput(e.target.value);
-                    const el = e.currentTarget;
-                    el.style.height = "auto";
-                    el.style.height = Math.min(el.scrollHeight, 200) + "px";
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submit(); }
-                  }}
-                  placeholder="Ask anything about your career..."
-                  className="block max-h-[200px] w-full resize-none rounded-3xl bg-transparent px-5 pb-14 pt-4 text-sm outline-none placeholder:text-muted-foreground"
-                />
-
-                <div className="absolute inset-x-2 bottom-2 flex items-center justify-between">
-                  <div className="flex items-center gap-0.5">
-                    <ToolButton title="Attach file" onClick={() => fileRef.current?.click()}><Paperclip className="h-4 w-4" /></ToolButton>
-                    <ToolButton title="Upload resume" onClick={() => resumeRef.current?.click()}><FileText className="h-4 w-4" /></ToolButton>
-                    <ToolButton title="Voice input" onClick={() => setVoiceOpen(true)}><Mic className="h-4 w-4" /></ToolButton>
-                    <div className="relative">
-                      <ToolButton title="Emoji" onClick={() => setEmojiOpen((o) => !o)} active={emojiOpen}><Smile className="h-4 w-4" /></ToolButton>
-                      <AnimatePresence>
-                        {emojiOpen && (
-                          <motion.div
-                            initial={{ opacity: 0, y: 8, scale: 0.95 }}
-                            animate={{ opacity: 1, y: 0, scale: 1 }}
-                            exit={{ opacity: 0, y: 8, scale: 0.95 }}
-                            className="glass-strong absolute bottom-11 left-0 z-30 grid w-64 grid-cols-10 gap-1 rounded-2xl p-2 shadow-panel"
+            <div className="relative rounded-2xl border border-border bg-card shadow-panel transition focus-within:border-ember">
+              <textarea
+                ref={inputRef}
+                value={input}
+                rows={1}
+                onChange={(e) => {
+                  setInput(e.target.value);
+                  const el = e.currentTarget;
+                  el.style.height = "auto";
+                  el.style.height = Math.min(el.scrollHeight, 200) + "px";
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submit(); }
+                }}
+                placeholder="Ask anything about your career..."
+                className="block max-h-[200px] w-full resize-none rounded-2xl bg-transparent px-4 pb-12 pt-3.5 text-sm outline-none placeholder:text-muted-foreground"
+              />
+              <div className="absolute inset-x-2 bottom-2 flex items-center justify-between">
+                <div className="flex items-center gap-0.5">
+                  <ToolButton title="Attach text file (.txt, .md)" onClick={() => fileRef.current?.click()}><Paperclip className="h-4 w-4" /></ToolButton>
+                  <ToolButton title="Voice input" onClick={() => setVoiceOpen(true)}><Mic className="h-4 w-4" /></ToolButton>
+                  <div className="relative">
+                    <ToolButton title="Emoji" onClick={() => setEmojiOpen((o) => !o)} active={emojiOpen}><Smile className="h-4 w-4" /></ToolButton>
+                    {emojiOpen && (
+                      <div className="absolute bottom-11 left-0 z-30 grid w-64 grid-cols-10 gap-1 rounded-xl border border-border bg-card p-2 shadow-panel">
+                        {EMOJIS.map((e) => (
+                          <button
+                            key={e}
+                            onClick={() => { setInput((v) => v + e); setEmojiOpen(false); inputRef.current?.focus(); }}
+                            className="rounded-md p-1 text-lg transition hover:bg-muted"
                           >
-                            {EMOJIS.map((e) => (
-                              <button
-                                key={e}
-                                onClick={() => { setInput((v) => v + e); setEmojiOpen(false); inputRef.current?.focus(); }}
-                                className="rounded-md p-1 text-lg transition hover:bg-muted"
-                              >
-                                {e}
-                              </button>
-                            ))}
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </div>
-                    <ToolButton title="Clear chat" onClick={() => { setConversationId(null); setInput(""); setAttachments([]); }}>
-                      <Trash className="h-4 w-4" />
-                    </ToolButton>
-                    <input ref={fileRef} type="file" multiple hidden onChange={(e) => handleAttach(e.target.files, "any")} />
-                    <input ref={resumeRef} type="file" accept=".pdf,.doc,.docx,.txt,.md" hidden onChange={(e) => handleAttach(e.target.files, "resume")} />
+                            {e}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                  <motion.button
-                    whileHover={{ scale: 1.04 }}
-                    whileTap={{ scale: 0.96 }}
-                    onClick={submit}
-                    disabled={!input.trim() || mut.isPending}
-                    className="brand-gradient flex h-9 items-center gap-1.5 rounded-full px-4 text-xs font-semibold text-white shadow-cta disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    {mut.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
-                    Send
-                  </motion.button>
+                  <input ref={fileRef} type="file" multiple accept=".txt,.md,.csv,.json" hidden onChange={(e) => { handleAttach(e.target.files); e.target.value = ""; }} />
                 </div>
+                <button
+                  onClick={submit}
+                  disabled={!input.trim() || mut.isPending}
+                  className="flex h-8 items-center gap-1.5 rounded-full bg-ink px-4 text-xs font-medium text-cream transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  {mut.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+                  Send
+                </button>
               </div>
-              <p className="mt-2 text-center text-[11px] text-muted-foreground">
-                ARS can make mistakes. Verify important details. Press Enter to send · Shift+Enter for new line.
-              </p>
             </div>
+            <p className="mt-2 text-center text-[11px] text-muted-foreground">
+              AI can make mistakes. Verify important details. Enter to send · Shift+Enter for new line.
+            </p>
           </div>
         </div>
       </section>
@@ -512,7 +387,7 @@ function ToolButton({ children, onClick, title, active }: { children: React.Reac
       type="button"
       onClick={onClick}
       title={title}
-      className={`grid h-9 w-9 place-items-center rounded-full text-muted-foreground transition hover:bg-muted hover:text-foreground ${active ? "bg-[#6366F1]/10 text-[#6366F1]" : ""}`}
+      className={`grid h-9 w-9 place-items-center rounded-full text-muted-foreground transition hover:bg-muted hover:text-foreground ${active ? "bg-ember/10 text-ember" : ""}`}
     >
       {children}
     </button>
@@ -521,15 +396,15 @@ function ToolButton({ children, onClick, title, active }: { children: React.Reac
 
 function Welcome({ greeting, name, onPick, onVoice }: { greeting: string; name?: string; onPick: (s: string) => void; onVoice: () => void }) {
   return (
-    <div className="mx-auto flex h-full max-w-3xl flex-col items-center justify-center px-6 py-12 text-center">
+    <div className="mx-auto flex min-h-full max-w-3xl flex-col items-center justify-center px-6 py-10 text-center">
       <div className="relative mb-6">
         <motion.div
-          className="brand-gradient absolute inset-0 -m-8 rounded-full opacity-30 blur-3xl"
+          className="bg-ember absolute inset-0 -m-8 rounded-full opacity-30 blur-3xl"
           animate={{ scale: [1, 1.15, 1], opacity: [0.25, 0.5, 0.25] }}
           transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
         />
         <motion.div
-          className="absolute inset-0 -m-4 rounded-full border border-[#6366F1]/30"
+          className="absolute inset-0 -m-4 rounded-full border border-ember/30"
           animate={{ rotate: 360 }}
           transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
         />
@@ -537,10 +412,10 @@ function Welcome({ greeting, name, onPick, onVoice }: { greeting: string; name?:
           initial={{ scale: 0.9, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           transition={{ type: "spring", stiffness: 200, damping: 20 }}
-          className="brand-gradient relative grid h-28 w-28 place-items-center rounded-full shadow-cta"
+          className="bg-ember relative grid h-20 w-20 place-items-center rounded-full shadow-cta"
         >
           <motion.div animate={{ rotate: [0, 8, -8, 0] }} transition={{ duration: 6, repeat: Infinity }}>
-            <Sparkles className="h-12 w-12 text-white" />
+            <Sparkles className="h-9 w-9 text-white" />
           </motion.div>
         </motion.div>
       </div>
@@ -563,7 +438,7 @@ function Welcome({ greeting, name, onPick, onVoice }: { greeting: string; name?:
         initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}
         className="mt-3 max-w-xl text-sm text-muted-foreground sm:text-base"
       >
-        I'm your <span className="brand-gradient-text font-semibold">AI Career Mentor</span>.
+        I'm your <span className="text-ember font-semibold">AI Career Mentor</span>.
         Ask anything about careers, resumes, interviews, learning paths, or jobs.
       </motion.p>
 
@@ -573,13 +448,13 @@ function Welcome({ greeting, name, onPick, onVoice }: { greeting: string; name?:
       >
         <button
           onClick={() => onPick("Let's begin — help me plan my next career move.")}
-          className="brand-gradient flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold text-white shadow-cta transition hover:brightness-110"
+          className="bg-ember flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold text-white shadow-cta transition hover:brightness-110"
         >
           <Wand2 className="h-4 w-4" /> Start conversation
         </button>
         <button
           onClick={onVoice}
-          className="flex items-center gap-2 rounded-full border border-border bg-card/70 px-5 py-2.5 text-sm font-semibold text-foreground backdrop-blur transition hover:border-[#6366F1]/50"
+          className="flex items-center gap-2 rounded-full border border-border bg-card/70 px-5 py-2.5 text-sm font-semibold text-foreground backdrop-blur transition hover:border-ember/50"
         >
           <Mic className="h-4 w-4" /> Voice mode
         </button>
@@ -594,7 +469,7 @@ function Welcome({ greeting, name, onPick, onVoice }: { greeting: string; name?:
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.35 + i * 0.04 }}
             whileHover={{ y: -3 }}
-            className="glass group flex items-start gap-2 rounded-2xl p-3 text-left text-xs shadow-panel transition-all hover:border-[#6366F1]/40 hover:shadow-cta"
+            className="bg-card border border-border group flex items-start gap-2 rounded-2xl p-3 text-left text-xs shadow-panel transition-all hover:border-ember/40 hover:shadow-cta"
           >
             <span className="text-lg leading-none">{s.emoji}</span>
             <span className="text-foreground/80 group-hover:text-foreground">{s.text}</span>
@@ -617,14 +492,14 @@ function Message({ role, content, onSpeak, onRegenerate }: { role: string; conte
       className={`group mb-6 flex gap-3 ${isUser ? "justify-end" : "justify-start"}`}
     >
       {!isUser && (
-        <div className="brand-gradient mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full text-white shadow-sm">
+        <div className="bg-ember mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full text-white shadow-sm">
           <Sparkles className="h-4 w-4" />
         </div>
       )}
       <div className="max-w-[85%] min-w-0">
         <div className={`whitespace-pre-wrap rounded-2xl px-4 py-3 text-sm leading-relaxed ${isUser
-          ? "brand-gradient text-white shadow-cta"
-          : "glass text-foreground shadow-sm"}`}>
+          ? "bg-ember text-white shadow-cta"
+          : "bg-card border border-border text-foreground shadow-sm"}`}>
           {content}
         </div>
         {!isUser && (
@@ -657,7 +532,7 @@ function MsgAction({ children, onClick, title, active }: { children: React.React
     <button
       onClick={onClick}
       title={title}
-      className={`rounded-md p-1.5 text-muted-foreground transition hover:bg-muted hover:text-foreground ${active ? "bg-[#6366F1]/10 text-[#6366F1]" : ""}`}
+      className={`rounded-md p-1.5 text-muted-foreground transition hover:bg-muted hover:text-foreground ${active ? "bg-ember/10 text-ember" : ""}`}
     >
       {children}
     </button>
@@ -667,13 +542,13 @@ function MsgAction({ children, onClick, title, active }: { children: React.React
 function ThinkingBubble() {
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mb-6 flex gap-3">
-      <div className="brand-gradient mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full text-white shadow-sm">
+      <div className="bg-ember mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full text-white shadow-sm">
         <Sparkles className="h-4 w-4 animate-pulse" />
       </div>
-      <div className="glass flex items-center gap-1.5 rounded-2xl px-4 py-3">
-        <motion.span className="h-1.5 w-1.5 rounded-full bg-[#6366F1]" animate={{ y: [0, -4, 0] }} transition={{ duration: 0.9, repeat: Infinity, delay: 0 }} />
-        <motion.span className="h-1.5 w-1.5 rounded-full bg-[#6366F1]" animate={{ y: [0, -4, 0] }} transition={{ duration: 0.9, repeat: Infinity, delay: 0.15 }} />
-        <motion.span className="h-1.5 w-1.5 rounded-full bg-[#6366F1]" animate={{ y: [0, -4, 0] }} transition={{ duration: 0.9, repeat: Infinity, delay: 0.3 }} />
+      <div className="bg-card border border-border flex items-center gap-1.5 rounded-2xl px-4 py-3">
+        <motion.span className="h-1.5 w-1.5 rounded-full bg-ember" animate={{ y: [0, -4, 0] }} transition={{ duration: 0.9, repeat: Infinity, delay: 0 }} />
+        <motion.span className="h-1.5 w-1.5 rounded-full bg-ember" animate={{ y: [0, -4, 0] }} transition={{ duration: 0.9, repeat: Infinity, delay: 0.15 }} />
+        <motion.span className="h-1.5 w-1.5 rounded-full bg-ember" animate={{ y: [0, -4, 0] }} transition={{ duration: 0.9, repeat: Infinity, delay: 0.3 }} />
         <span className="ml-2 text-xs text-muted-foreground">Thinking…</span>
       </div>
     </motion.div>
@@ -743,7 +618,7 @@ function ConvoRow({ convo, active, onSelect, onRename, onDelete, onPin }: {
     <motion.div
       whileHover={{ x: 2 }}
       className={`group relative flex items-center rounded-xl text-sm transition-all ${active
-        ? "brand-gradient text-white shadow-cta"
+        ? "bg-ember text-white shadow-cta"
         : "hover:bg-muted"}`}
     >
       {editing ? (
@@ -756,13 +631,13 @@ function ConvoRow({ convo, active, onSelect, onRename, onDelete, onPin }: {
             if (e.key === "Enter") (e.target as HTMLInputElement).blur();
             if (e.key === "Escape") { setTitle(convo.title); setEditing(false); }
           }}
-          className="flex-1 rounded-xl bg-transparent px-3 py-2 text-sm outline-none ring-1 ring-[#6366F1]"
+          className="flex-1 rounded-xl bg-transparent px-3 py-2 text-sm outline-none ring-1 ring-ember"
         />
       ) : (
         <button onClick={onSelect} className={`flex flex-1 min-w-0 items-center gap-2 px-3 py-2 text-left ${active ? "text-white" : "text-foreground/80"}`}>
           <MessageSquare className={`h-3.5 w-3.5 shrink-0 ${active ? "text-white/80" : "text-muted-foreground"}`} />
           <span className="truncate">{convo.title || "Untitled"}</span>
-          {convo.pinned && <Pin className={`h-3 w-3 shrink-0 ${active ? "text-white" : "text-[#6366F1]"}`} />}
+          {convo.pinned && <Pin className={`h-3 w-3 shrink-0 ${active ? "text-white" : "text-ember"}`} />}
         </button>
       )}
       <button
@@ -774,7 +649,7 @@ function ConvoRow({ convo, active, onSelect, onRename, onDelete, onPin }: {
       {menu && (
         <>
           <div className="fixed inset-0 z-10" onClick={() => setMenu(false)} />
-          <div className="glass-strong absolute right-1 top-9 z-20 w-40 overflow-hidden rounded-xl shadow-panel">
+          <div className="bg-card border border-border absolute right-1 top-9 z-20 w-40 overflow-hidden rounded-xl shadow-panel">
             <MenuItem icon={convo.pinned ? PinOff : Pin} label={convo.pinned ? "Unpin" : "Pin"} onClick={() => { onPin(); setMenu(false); }} />
             <MenuItem icon={Pencil} label="Rename" onClick={() => { setEditing(true); setMenu(false); }} />
             <MenuItem icon={Trash2} label="Delete" danger onClick={() => { onDelete(); setMenu(false); }} />
@@ -930,21 +805,21 @@ function VoicePanel({
         animate={{ scale: 1, opacity: 1, y: 0 }}
         exit={{ scale: 0.92, opacity: 0, y: 20 }}
         transition={{ type: "spring", stiffness: 260, damping: 22 }}
-        className="ambient-orbs glass-strong relative w-full max-w-lg overflow-hidden rounded-3xl shadow-panel"
+        className="bg-card border border-border relative w-full max-w-lg overflow-hidden rounded-3xl shadow-panel"
       >
         <button onClick={onClose} className="absolute right-3 top-3 z-10 rounded-full p-1.5 text-muted-foreground hover:bg-muted"><X className="h-4 w-4" /></button>
 
         <div className="relative flex flex-col items-center px-6 pb-4 pt-8">
           <div className="relative mb-5">
-            <motion.div className="brand-gradient absolute inset-0 -m-8 rounded-full opacity-40 blur-3xl"
+            <motion.div className="bg-ember absolute inset-0 -m-8 rounded-full opacity-40 blur-3xl"
               animate={status === "listening" ? { scale: [1, 1.2, 1] } : status === "speaking" ? { opacity: [0.4, 0.6, 0.4] } : {}}
               transition={{ duration: 1.6, repeat: Infinity }} />
             {status === "listening" && (
-              <motion.div className="absolute inset-0 -m-3 rounded-full border-2 border-[#6366F1]/60"
+              <motion.div className="absolute inset-0 -m-3 rounded-full border-2 border-ember/60"
                 animate={{ scale: [1, 1.25], opacity: [0.8, 0] }}
                 transition={{ duration: 1.5, repeat: Infinity }} />
             )}
-            <div className="brand-gradient relative grid h-28 w-28 place-items-center rounded-full shadow-cta">
+            <div className="bg-ember relative grid h-28 w-28 place-items-center rounded-full shadow-cta">
               {status === "thinking" ? <Loader2 className="h-10 w-10 animate-spin text-white" /> :
                 status === "speaking" ? <Volume2 className="h-10 w-10 animate-pulse text-white" /> :
                 status === "listening" ? <Mic className="h-10 w-10 text-white" /> :
@@ -960,7 +835,7 @@ function VoicePanel({
             {levels.map((v, i) => (
               <motion.span
                 key={i}
-                className="brand-gradient w-1 rounded-full"
+                className="bg-ember w-1 rounded-full"
                 style={{ height: `${v * 100}%` }}
                 animate={status === "speaking" ? { scaleY: [0.4, 1, 0.5, 0.9, 0.4] } : {}}
                 transition={{ duration: 0.6, repeat: Infinity, delay: i * 0.03 }}
@@ -973,7 +848,7 @@ function VoicePanel({
         {status === "speaking" && sentences.length > 0 && (
           <div className="border-y border-border/60 bg-background/40 px-6 py-4 text-center text-sm leading-relaxed">
             {sentences.map((s, i) => (
-              <span key={i} className={i === spokenIdx ? "brand-gradient-text font-semibold" : "text-muted-foreground/70"}> {s} </span>
+              <span key={i} className={i === spokenIdx ? "text-ember font-semibold" : "text-muted-foreground/70"}> {s} </span>
             ))}
           </div>
         )}
@@ -986,7 +861,7 @@ function VoicePanel({
           )}
           {transcript.map((t, i) => (
             <div key={i} className={`flex ${t.role === "user" ? "justify-end" : "justify-start"}`}>
-              <div className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm ${t.role === "user" ? "brand-gradient text-white" : "glass"}`}>
+              <div className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm ${t.role === "user" ? "bg-ember text-white" : "bg-card border border-border"}`}>
                 {t.text}
               </div>
             </div>
@@ -1010,7 +885,7 @@ function VoicePanel({
               whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }}
               onClick={startRecording}
               disabled={status !== "idle" || muted}
-              className="brand-gradient flex items-center gap-2 rounded-full px-8 py-3 text-sm font-semibold text-white shadow-cta disabled:opacity-40"
+              className="bg-ember flex items-center gap-2 rounded-full px-8 py-3 text-sm font-semibold text-white shadow-cta disabled:opacity-40"
             >
               <Mic className="h-4 w-4" /> Speak
             </motion.button>

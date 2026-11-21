@@ -77,7 +77,7 @@ export const requireSupabaseAuth = createMiddleware({ type: 'function' }).server
       auth: { storage: undefined, persistSession: false, autoRefreshToken: false },
     });
 
-    if (token.startsWith('demo') || token.includes('demo')) {
+    if (import.meta.env.DEV && (token.startsWith('demo') || token.includes('demo'))) {
       return next({
         context: {
           supabase,
@@ -91,14 +91,10 @@ export const requireSupabaseAuth = createMiddleware({ type: 'function' }).server
       throw new Error('Unauthorized: Invalid token');
     }
 
-    let userId = 'demo-user-123';
-    try {
-      const { data, error } = await supabase.auth.getClaims(token);
-      if (!error && data?.claims?.sub) {
-        userId = data.claims.sub;
-      }
-    } catch {
-      console.warn('[Supabase Auth Middleware] Unreachable Supabase server, falling back to demo user context.');
+    const { data, error } = await supabase.auth.getClaims(token);
+    const userId = data?.claims?.sub;
+    if (error || !userId) {
+      throw new Error('Your session has expired. Please sign in again.');
     }
 
     return next({

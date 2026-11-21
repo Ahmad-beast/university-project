@@ -26,7 +26,7 @@ function AuthPage() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (typeof window !== "undefined" && localStorage.getItem("demo_user_session")) {
+    if (import.meta.env.DEV && typeof window !== "undefined" && localStorage.getItem("demo_user_session")) {
       navigate({ to: "/dashboard" });
       return;
     }
@@ -57,9 +57,8 @@ function AuthPage() {
       });
       if (error) throw error;
       // Browser redirects to Google; nothing else to do here.
-    } catch {
-      toast.info("Signing in with Demo Google account...");
-      loginAsDemo("google.student@example.com", "Google Demo Student");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Google sign-in failed");
     }
   };
 
@@ -68,7 +67,7 @@ function AuthPage() {
     setLoading(true);
     try {
       if (mode === "signup") {
-        const { error } = await supabase.auth.signUp({
+        const { data, error } = await supabase.auth.signUp({
           email,
           password,
           options: {
@@ -77,6 +76,12 @@ function AuthPage() {
           },
         });
         if (error) throw error;
+        if (!data.session) {
+          // Email confirmation is on: user must click the link first.
+          toast.success("Account created! Check your email to confirm, then sign in.");
+          setMode("signin");
+          return;
+        }
         toast.success("Account created!");
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -84,10 +89,7 @@ function AuthPage() {
       }
       navigate({ to: "/dashboard" });
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Something went wrong";
-      console.warn("Supabase auth response:", msg);
-      toast.info("Signing in with local account credentials...");
-      loginAsDemo(email || "student@example.com", name || "Demo Student");
+      toast.error(err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setLoading(false);
     }
@@ -110,14 +112,16 @@ function AuthPage() {
               : "Create an account to unlock your AI career agent."}
           </p>
 
+          {import.meta.env.DEV && (
           <button
             onClick={() => loginAsDemo()}
             type="button"
             className="mt-6 flex w-full items-center justify-center gap-2 rounded-full bg-ember px-4 py-2.5 text-sm font-semibold text-cream shadow-sm hover:opacity-90"
           >
             <Sparkles className="h-4 w-4" />
-            Instant Demo Sign In (Explore All Features)
+            Instant Demo Sign In (local dev only)
           </button>
+          )}
 
           <button
             onClick={onGoogle}
